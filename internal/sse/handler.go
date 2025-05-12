@@ -29,18 +29,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ch := h.broker.Subscribe()
 	defer h.broker.Unsubscribe(ch)
 
-	notify := w.(http.CloseNotifier).CloseNotify()
-	go func() {
-		<-notify
-		h.broker.Unsubscribe(ch)
-	}()
+	// Use context cancellation to handle client disconnect
+	ctx := r.Context()
 
 	for {
 		select {
 		case msg := <-ch:
 			fmt.Fprintf(w, "data: %s\n\n", msg)
 			flusher.Flush()
-		case <-r.Context().Done():
+		case <-ctx.Done():
+			// client gone or request cancelled
 			return
 		}
 	}
