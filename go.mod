@@ -3,7 +3,6 @@ module github.com/todoflow-labs/sse-updates
 go 1.24.3
 
 require (
-	github.com/joho/godotenv v1.5.1
 	github.com/nats-io/nats.go v1.42.0
 	github.com/spf13/pflag v1.0.6
 	github.com/spf13/viper v1.20.1

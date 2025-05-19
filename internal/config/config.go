@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/joho/godotenv"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
@@ -35,10 +34,6 @@ func Load() (*Config, error) {
 		fmt.Printf("No config file found, using flags/env: %v\n", err)
 	}
 
-	if err := godotenv.Load(); err != nil {
-		return nil, fmt.Errorf("error loading .env file")
-	}
-
 	var cfg Config
 	if err := viper.Unmarshal(&cfg); err != nil {
 		return nil, err
@@ -49,12 +44,6 @@ func Load() (*Config, error) {
 	}
 	if cfg.HTTPAddr == "" {
 		return nil, fmt.Errorf("http-addr must be set")
-	}
-
-	// get environment from .env
-	err := godotenv.Load()
-	if err != nil {
-		return nil, fmt.Errorf("error loading .env file")
 	}
 
 	return &cfg, nil
