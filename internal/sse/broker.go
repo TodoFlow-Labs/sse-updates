@@ -6,43 +6,61 @@ import (
 )
 
 type Broker struct {
-	clients    map[chan string]bool
-	register   chan chan string
-	unregister chan chan string
-	broadcast  chan string
+	clients    map[string]map[chan string]bool // userID -> clients
+	register   chan clientReg
+	unregister chan clientReg
+	broadcast  chan userMsg
 	lock       sync.RWMutex
+}
+
+type clientReg struct {
+	userID string
+	ch     chan string
+}
+
+type userMsg struct {
+	userID string
+	msg    string
 }
 
 func NewBroker() *Broker {
 	return &Broker{
-		clients:    make(map[chan string]bool),
-		register:   make(chan chan string),
-		unregister: make(chan chan string),
-		broadcast:  make(chan string),
+		clients:    make(map[string]map[chan string]bool),
+		register:   make(chan clientReg),
+		unregister: make(chan clientReg),
+		broadcast:  make(chan userMsg),
 	}
 }
 
 func (b *Broker) Run() {
 	for {
 		select {
-		case client := <-b.register:
+		case reg := <-b.register:
 			b.lock.Lock()
-			b.clients[client] = true
+			if b.clients[reg.userID] == nil {
+				b.clients[reg.userID] = make(map[chan string]bool)
+			}
+			b.clients[reg.userID][reg.ch] = true
 			b.lock.Unlock()
 
-		case client := <-b.unregister:
+		case reg := <-b.unregister:
 			b.lock.Lock()
-			if _, ok := b.clients[client]; ok {
-				delete(b.clients, client)
-				close(client)
+			if clients, ok := b.clients[reg.userID]; ok {
+				if _, exists := clients[reg.ch]; exists {
+					delete(clients, reg.ch)
+					close(reg.ch)
+					if len(clients) == 0 {
+						delete(b.clients, reg.userID)
+					}
+				}
 			}
 			b.lock.Unlock()
 
 		case msg := <-b.broadcast:
 			b.lock.RLock()
-			for client := range b.clients {
+			for ch := range b.clients[msg.userID] {
 				select {
-				case client <- msg:
+				case ch <- msg.msg:
 				default:
 				}
 			}
@@ -51,16 +69,16 @@ func (b *Broker) Run() {
 	}
 }
 
-func (b *Broker) Publish(msg string) {
-	b.broadcast <- msg
+func (b *Broker) PublishTo(userID, msg string) {
+	b.broadcast <- userMsg{userID, msg}
 }
 
-func (b *Broker) Subscribe() chan string {
+func (b *Broker) Subscribe(userID string) chan string {
 	ch := make(chan string, 10)
-	b.register <- ch
+	b.register <- clientReg{userID, ch}
 	return ch
 }
 
-func (b *Broker) Unsubscribe(ch chan string) {
-	b.unregister <- ch
+func (b *Broker) Unsubscribe(userID string, ch chan string) {
+	b.unregister <- clientReg{userID, ch}
 }

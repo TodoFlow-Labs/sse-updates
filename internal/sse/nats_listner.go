@@ -2,8 +2,10 @@
 package sse
 
 import (
-	"github.com/nats-io/nats.go"
+	"encoding/json"
 	"log"
+
+	"github.com/nats-io/nats.go"
 )
 
 func StartNATSListener(natsURL string, broker *Broker) error {
@@ -17,12 +19,18 @@ func StartNATSListener(natsURL string, broker *Broker) error {
 	}
 
 	_, err = js.Subscribe("todo.events", func(m *nats.Msg) {
-		broker.Publish(string(m.Data))
+		var evt struct {
+			UserID string `json:"user_id"`
+		}
+		if err := json.Unmarshal(m.Data, &evt); err != nil {
+			log.Printf("invalid event: %v", err)
+			_ = m.Ack()
+			return
+		}
+
+		broker.PublishTo(evt.UserID, string(m.Data))
 		_ = m.Ack()
 	}, nats.Durable("sse-updates"), nats.ManualAck())
-	if err != nil {
-		return err
-	}
 
 	log.Println("Subscribed to todo.events for SSE")
 	return nil

@@ -26,19 +26,17 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.WriteHeader(http.StatusOK)
 
-	ch := h.broker.Subscribe()
-	defer h.broker.Unsubscribe(ch)
+	userID := fmt.Sprint(r.Context().Value("user_id"))
+	ch := h.broker.Subscribe(userID)
+	defer h.broker.Unsubscribe(userID, ch)
 
-	// Use context cancellation to handle client disconnect
 	ctx := r.Context()
-
 	for {
 		select {
 		case msg := <-ch:
 			fmt.Fprintf(w, "data: %s\n\n", msg)
 			flusher.Flush()
 		case <-ctx.Done():
-			// client gone or request cancelled
 			return
 		}
 	}
