@@ -3,6 +3,7 @@ package sse
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 )
 
@@ -15,6 +16,16 @@ func NewHandler(b *Broker) http.Handler {
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	val := r.Context().Value("user_id")
+	userID, ok := val.(string)
+	if !ok || userID == "" {
+		log.Println("Missing or invalid user ID in context")
+		http.Error(w, "X-User-ID required", http.StatusUnauthorized)
+		return
+	}
+
+	log.Printf("SSE handler started for userID: %s", userID)
+
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
@@ -26,7 +37,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.WriteHeader(http.StatusOK)
 
-	userID := fmt.Sprint(r.Context().Value("user_id"))
 	ch := h.broker.Subscribe(userID)
 	defer h.broker.Unsubscribe(userID, ch)
 

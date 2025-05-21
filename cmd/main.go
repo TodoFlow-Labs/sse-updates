@@ -39,9 +39,9 @@ func main() {
 	}
 }
 
-const UserIDKey ctxKey = "user_id"
+const UserIDKey string = "user_id"
 
-type ctxKey string
+// type ctxKey string
 
 func authMiddleware(next http.Handler, logger logging.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -55,7 +55,7 @@ func authMiddleware(next http.Handler, logger logging.Logger) http.Handler {
 				return
 			}
 		}
-		logger.Debug().Str("userID", userID).Msg("authMiddleware")
+		logger.Debug().Str("user_id", userID).Msg("authMiddleware")
 		ctx := context.WithValue(r.Context(), UserIDKey, userID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

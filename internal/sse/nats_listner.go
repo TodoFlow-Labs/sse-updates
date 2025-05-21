@@ -3,6 +3,7 @@ package sse
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 
 	"github.com/nats-io/nats.go"
@@ -18,19 +19,31 @@ func StartNATSListener(natsURL string, broker *Broker) error {
 		return err
 	}
 
-	_, err = js.Subscribe("todo.events", func(m *nats.Msg) {
-		var evt struct {
-			UserID string `json:"user_id"`
-		}
-		if err := json.Unmarshal(m.Data, &evt); err != nil {
-			log.Printf("invalid event: %v", err)
-			_ = m.Ack()
-			return
-		}
+	// Clean subscription
+	_, err = js.Subscribe(
+		"todo.events",
+		func(m *nats.Msg) {
+			log.Printf("RAW: %s", string(m.Data))
 
-		broker.PublishTo(evt.UserID, string(m.Data))
-		_ = m.Ack()
-	}, nats.Durable("sse-updates"), nats.ManualAck())
+			var evt struct {
+				UserID string `json:"user_id"`
+			}
+			if err := json.Unmarshal(m.Data, &evt); err != nil {
+				log.Printf("invalid event: %v", err)
+				_ = m.Ack()
+				return
+			}
+
+			log.Printf("EVENT userID: %s", evt.UserID)
+			broker.PublishTo(evt.UserID, string(m.Data))
+			_ = m.Ack()
+		},
+		nats.Durable("sse-updates"),
+		nats.ManualAck(),
+	)
+	if err != nil {
+		return fmt.Errorf("subscribe error: %w", err)
+	}
 
 	log.Println("Subscribed to todo.events for SSE")
 	return nil

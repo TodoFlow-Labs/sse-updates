@@ -1,4 +1,3 @@
-// internal/sse/broker.go
 package sse
 
 import (
@@ -6,7 +5,7 @@ import (
 )
 
 type Broker struct {
-	clients    map[string]map[chan string]bool // userID -> clients
+	clients    map[string]map[chan string]bool // userID -> set of channels
 	register   chan clientReg
 	unregister chan clientReg
 	broadcast  chan userMsg
@@ -45,11 +44,11 @@ func (b *Broker) Run() {
 
 		case reg := <-b.unregister:
 			b.lock.Lock()
-			if clients, ok := b.clients[reg.userID]; ok {
-				if _, exists := clients[reg.ch]; exists {
-					delete(clients, reg.ch)
+			if conns, ok := b.clients[reg.userID]; ok {
+				if _, exists := conns[reg.ch]; exists {
+					delete(conns, reg.ch)
 					close(reg.ch)
-					if len(clients) == 0 {
+					if len(conns) == 0 {
 						delete(b.clients, reg.userID)
 					}
 				}
@@ -58,10 +57,12 @@ func (b *Broker) Run() {
 
 		case msg := <-b.broadcast:
 			b.lock.RLock()
-			for ch := range b.clients[msg.userID] {
-				select {
-				case ch <- msg.msg:
-				default:
+			if conns, ok := b.clients[msg.userID]; ok {
+				for ch := range conns {
+					select {
+					case ch <- msg.msg:
+					default:
+					}
 				}
 			}
 			b.lock.RUnlock()
